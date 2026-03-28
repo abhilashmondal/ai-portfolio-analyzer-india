@@ -1,0 +1,15 @@
+packages:
+  recharts: "Required for sector allocation pie charts and visual analytics"
+  framer-motion: "Required for smooth dashboard transitions, tab animations, and component mounting"
+  html2canvas: "Required for capturing the dashboard view for PDF export"
+  jspdf: "Required for generating the downloadable PDF report"
+  clsx: "Utility for tailwind class merging"
+  tailwind-merge: "Utility for tailwind class merging"
+
+images: []
+
+notes:
+  - API hooks are imported from @workspace/api-client-react
+  - No authentication required as per implementation notes
+  - Using framer-motion for premium feel and layout animations
+  - Implemented client-side PDF export using html2canvas + jspdf

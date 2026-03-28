@@ -1,15 +1,21 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Portfolio Analyzer India Markets API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: portfolio
+    description: Portfolio analysis operations
+  - name: stocks
+    description: Stock data operations
+  - name: ai
+    description: AI analysis operations
+
 paths:
   /healthz:
     get:
@@ -24,6 +30,119 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /stocks/nifty50:
+    get:
+      operationId: getNifty50Stocks
+      tags: [stocks]
+      summary: Get NIFTY 50 stock list
+      description: Returns the list of all NIFTY 50 constituent stocks
+      responses:
+        "200":
+          description: NIFTY 50 stocks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockListResponse"
+
+  /stocks/sensex30:
+    get:
+      operationId: getSensex30Stocks
+      tags: [stocks]
+      summary: Get SENSEX 30 stock list
+      description: Returns the list of all SENSEX 30 constituent stocks
+      responses:
+        "200":
+          description: SENSEX 30 stocks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockListResponse"
+
+  /stocks/quote:
+    post:
+      operationId: getStockQuotes
+      tags: [stocks]
+      summary: Get real-time stock quotes
+      description: Fetches latest price and market data for given stock symbols
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockQuoteRequest"
+      responses:
+        "200":
+          description: Stock quotes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockQuoteResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /portfolio/analyze:
+    post:
+      operationId: analyzePortfolio
+      tags: [portfolio]
+      summary: Analyze portfolio metrics
+      description: Calculates portfolio value, sector allocation, risk metrics, and P/E ratios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioRequest"
+      responses:
+        "200":
+          description: Portfolio analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioAnalysisResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/analyze:
+    post:
+      operationId: aiAnalyzePortfolio
+      tags: [ai]
+      summary: AI portfolio analysis from GPT and Claude
+      description: Sends portfolio data to both OpenAI GPT and Anthropic Claude for analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIAnalysisRequest"
+      responses:
+        "200":
+          description: AI analysis from both models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIAnalysisResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: AI service error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +153,383 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    StockInfo:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        sector:
+          type: string
+        exchange:
+          type: string
+          enum: [NSE, BSE]
+      required:
+        - symbol
+        - name
+        - sector
+        - exchange
+
+    StockListResponse:
+      type: object
+      properties:
+        stocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockInfo"
+        count:
+          type: integer
+      required:
+        - stocks
+        - count
+
+    StockQuoteRequest:
+      type: object
+      properties:
+        symbols:
+          type: array
+          items:
+            type: string
+          description: List of NSE stock symbols (e.g. RELIANCE, TCS)
+      required:
+        - symbols
+
+    StockQuote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        currentPrice:
+          type: number
+        previousClose:
+          type: number
+        changePercent:
+          type: number
+        marketCap:
+          type: number
+        peRatio:
+          type: number
+        pbRatio:
+          type: number
+        eps:
+          type: number
+        fiftyTwoWeekHigh:
+          type: number
+        fiftyTwoWeekLow:
+          type: number
+        volume:
+          type: number
+        avgVolume:
+          type: number
+        sector:
+          type: string
+        industry:
+          type: string
+        beta:
+          type: number
+        dividendYield:
+          type: number
+        lastUpdated:
+          type: string
+      required:
+        - symbol
+        - name
+        - currentPrice
+        - changePercent
+        - sector
+        - lastUpdated
+
+    StockQuoteResponse:
+      type: object
+      properties:
+        quotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockQuote"
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - quotes
+        - errors
+
+    PortfolioHolding:
+      type: object
+      properties:
+        symbol:
+          type: string
+        quantity:
+          type: number
+        buyPrice:
+          type: number
+        name:
+          type: string
+      required:
+        - symbol
+        - quantity
+        - buyPrice
+
+    PortfolioRequest:
+      type: object
+      properties:
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioHolding"
+      required:
+        - holdings
+
+    SectorAllocation:
+      type: object
+      properties:
+        sector:
+          type: string
+        value:
+          type: number
+        percentage:
+          type: number
+        count:
+          type: integer
+      required:
+        - sector
+        - value
+        - percentage
+        - count
+
+    HoldingDetail:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        sector:
+          type: string
+        quantity:
+          type: number
+        buyPrice:
+          type: number
+        currentPrice:
+          type: number
+        currentValue:
+          type: number
+        investedValue:
+          type: number
+        gainLoss:
+          type: number
+        gainLossPercent:
+          type: number
+        peRatio:
+          type: number
+        beta:
+          type: number
+        weight:
+          type: number
+      required:
+        - symbol
+        - name
+        - sector
+        - quantity
+        - buyPrice
+        - currentPrice
+        - currentValue
+        - investedValue
+        - gainLoss
+        - gainLossPercent
+        - weight
+
+    RiskMetrics:
+      type: object
+      properties:
+        portfolioBeta:
+          type: number
+        volatilityCategory:
+          type: string
+          enum: [Low, Moderate, High, Very High]
+        concentrationRisk:
+          type: string
+          enum: [Low, Moderate, High]
+        topHoldingWeight:
+          type: number
+        numberOfSectors:
+          type: integer
+        herfindahlIndex:
+          type: number
+      required:
+        - portfolioBeta
+        - volatilityCategory
+        - concentrationRisk
+        - topHoldingWeight
+        - numberOfSectors
+        - herfindahlIndex
+
+    PortfolioAnalysisResponse:
+      type: object
+      properties:
+        totalCurrentValue:
+          type: number
+        totalInvestedValue:
+          type: number
+        totalGainLoss:
+          type: number
+        totalGainLossPercent:
+          type: number
+        weightedPE:
+          type: number
+        niftyPE:
+          type: number
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingDetail"
+        sectorAllocation:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectorAllocation"
+        riskMetrics:
+          $ref: "#/components/schemas/RiskMetrics"
+        portfolioJson:
+          type: string
+          description: Stringified JSON of portfolio data for AI prompts
+      required:
+        - totalCurrentValue
+        - totalInvestedValue
+        - totalGainLoss
+        - totalGainLossPercent
+        - weightedPE
+        - niftyPE
+        - holdings
+        - sectorAllocation
+        - riskMetrics
+        - portfolioJson
+
+    AIAnalysisRequest:
+      type: object
+      properties:
+        portfolioJson:
+          type: string
+          description: Stringified JSON of portfolio data
+        portfolioSummary:
+          type: object
+          properties:
+            totalCurrentValue:
+              type: number
+            totalGainLossPercent:
+              type: number
+            weightedPE:
+              type: number
+            niftyPE:
+              type: number
+            numberOfHoldings:
+              type: integer
+            topSectors:
+              type: array
+              items:
+                type: string
+          required:
+            - totalCurrentValue
+            - totalGainLossPercent
+            - weightedPE
+            - niftyPE
+            - numberOfHoldings
+            - topSectors
+      required:
+        - portfolioJson
+        - portfolioSummary
+
+    StockRecommendation:
+      type: object
+      properties:
+        stock:
+          type: string
+        action:
+          type: string
+          enum: [BUY, HOLD, SELL]
+        reason:
+          type: string
+      required:
+        - stock
+        - action
+        - reason
+
+    AIAnalysisResult:
+      type: object
+      properties:
+        risk_level:
+          type: string
+        diversification_score:
+          type: string
+        key_issues:
+          type: array
+          items:
+            type: string
+        stock_recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockRecommendation"
+        summary:
+          type: string
+      required:
+        - risk_level
+        - diversification_score
+        - key_issues
+        - stock_recommendations
+        - summary
+
+    ConsensusView:
+      type: object
+      properties:
+        overallRisk:
+          type: string
+        consensusSummary:
+          type: string
+        agreedRecommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockRecommendation"
+        divergentViews:
+          type: array
+          items:
+            type: string
+      required:
+        - overallRisk
+        - consensusSummary
+        - agreedRecommendations
+        - divergentViews
+
+    AIAnalysisResponse:
+      type: object
+      properties:
+        gpt:
+          $ref: "#/components/schemas/AIAnalysisResult"
+        claude:
+          $ref: "#/components/schemas/AIAnalysisResult"
+        consensus:
+          $ref: "#/components/schemas/ConsensusView"
+        gptModel:
+          type: string
+        claudeModel:
+          type: string
+        analyzedAt:
+          type: string
+      required:
+        - gpt
+        - claude
+        - consensus
+        - gptModel
+        - claudeModel
+        - analyzedAt

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AI Portfolio Analyzer – India Markets"
+version = "1.0.0"
+id = "artifacts/portfolio-analyzer"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23696
+
+[services.development]
+run = "pnpm --filter @workspace/portfolio-analyzer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/portfolio-analyzer", "run", "build" ]
+publicDir = "artifacts/portfolio-analyzer/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23696"
+BASE_PATH = "/"
