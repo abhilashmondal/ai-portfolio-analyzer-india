@@ -4,64 +4,101 @@ import { AnalyzePortfolioBody, AnalyzePortfolioResponse } from "@workspace/api-z
 const router: IRouter = Router();
 
 const NIFTY_PE = 22.5;
+const FETCH_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  return fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
 
 router.post("/analyze", async (req, res) => {
   const parseResult = AnalyzePortfolioBody.safeParse(req.body);
   if (!parseResult.success) {
+    req.log.warn({ issues: parseResult.error.issues }, "Portfolio analyze: invalid request body");
     res.status(400).json({ error: "Bad request", message: parseResult.error.message });
     return;
   }
 
   const { holdings } = parseResult.data;
 
+  if (holdings.length === 0) {
+    res.status(400).json({ error: "Bad request", message: "Portfolio must contain at least one holding" });
+    return;
+  }
+
+  if (holdings.length > 50) {
+    res.status(400).json({ error: "Bad request", message: "Portfolio cannot exceed 50 holdings" });
+    return;
+  }
+
+  req.log.info(
+    { holdingCount: holdings.length, symbols: holdings.map((h) => h.symbol) },
+    "Portfolio analyze: incoming request"
+  );
+
   const symbols = holdings.map((h) => h.symbol);
 
   const fetchPromises = symbols.map(async (symbol) => {
-    const [chartRes, summaryRes] = await Promise.all([
-      fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-      }),
-      fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail,defaultKeyStatistics,assetProfile`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-      }),
-    ]);
-
     let currentPrice = 0;
     let peRatio: number | undefined;
     let beta: number | undefined;
     let sector = "Unknown";
     let name = symbol;
 
-    if (chartRes.ok) {
-      const json = await chartRes.json() as Record<string, unknown>;
-      const result = (json.chart as Record<string, unknown>)?.result as unknown[];
-      const meta = (result?.[0] as Record<string, unknown>)?.meta as Record<string, unknown>;
-      if (meta) {
-        currentPrice = (typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : 0) ||
-                       (typeof meta.previousClose === "number" ? meta.previousClose : 0);
-        name = String(meta.longName ?? meta.shortName ?? symbol);
-      }
-    }
+    try {
+      const [chartRes, summaryRes] = await Promise.all([
+        fetchWithTimeout(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
+          FETCH_TIMEOUT_MS
+        ),
+        fetchWithTimeout(
+          `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail,defaultKeyStatistics,assetProfile`,
+          FETCH_TIMEOUT_MS
+        ),
+      ]);
 
-    if (summaryRes.ok) {
-      const json = await summaryRes.json() as Record<string, unknown>;
-      const result = ((json.quoteSummary as Record<string, unknown>)?.result as unknown[])?.[0] as Record<string, unknown> | undefined;
-      const summaryDetail = result?.summaryDetail as Record<string, unknown> | undefined;
-      const keyStats = result?.defaultKeyStatistics as Record<string, unknown> | undefined;
-      const assetProfile = result?.assetProfile as Record<string, unknown> | undefined;
-
-      const getRaw = (val: unknown): number | undefined => {
-        if (typeof val === "number" && !isNaN(val)) return val;
-        if (typeof val === "object" && val !== null) {
-          const obj = val as Record<string, unknown>;
-          if (typeof obj.raw === "number" && !isNaN(obj.raw)) return obj.raw;
+      if (chartRes.ok) {
+        const json = await chartRes.json() as Record<string, unknown>;
+        const result = (json.chart as Record<string, unknown>)?.result as unknown[];
+        const meta = (result?.[0] as Record<string, unknown>)?.meta as Record<string, unknown>;
+        if (meta) {
+          currentPrice =
+            (typeof meta.regularMarketPrice === "number" ? meta.regularMarketPrice : 0) ||
+            (typeof meta.previousClose === "number" ? meta.previousClose : 0);
+          name = String(meta.longName ?? meta.shortName ?? symbol);
         }
-        return undefined;
-      };
+      } else {
+        req.log.warn({ symbol, status: chartRes.status }, "Yahoo chart fetch non-OK");
+      }
 
-      peRatio = getRaw(summaryDetail?.trailingPE);
-      beta = getRaw(summaryDetail?.beta) ?? getRaw(keyStats?.beta);
-      sector = String(assetProfile?.sector ?? "Unknown");
+      if (summaryRes.ok) {
+        const json = await summaryRes.json() as Record<string, unknown>;
+        const result = (
+          (json.quoteSummary as Record<string, unknown>)?.result as unknown[]
+        )?.[0] as Record<string, unknown> | undefined;
+        const summaryDetail = result?.summaryDetail as Record<string, unknown> | undefined;
+        const keyStats = result?.defaultKeyStatistics as Record<string, unknown> | undefined;
+        const assetProfile = result?.assetProfile as Record<string, unknown> | undefined;
+
+        const getRaw = (val: unknown): number | undefined => {
+          if (typeof val === "number" && !isNaN(val)) return val;
+          if (typeof val === "object" && val !== null) {
+            const obj = val as Record<string, unknown>;
+            if (typeof obj.raw === "number" && !isNaN(obj.raw)) return obj.raw;
+          }
+          return undefined;
+        };
+
+        peRatio = getRaw(summaryDetail?.trailingPE);
+        beta = getRaw(summaryDetail?.beta) ?? getRaw(keyStats?.beta);
+        sector = String(assetProfile?.sector ?? "Unknown");
+      } else {
+        req.log.warn({ symbol, status: summaryRes.status }, "Yahoo summary fetch non-OK");
+      }
+    } catch (fetchErr) {
+      req.log.warn({ symbol, err: String(fetchErr) }, "Yahoo Finance fetch error — using buy price as fallback");
     }
 
     return { symbol, currentPrice, peRatio, beta, sector, name };
@@ -74,6 +111,7 @@ router.post("/analyze", async (req, res) => {
     if (result.status === "fulfilled") {
       quoteMap.set(symbols[i]!, result.value);
     } else {
+      req.log.warn({ symbol: symbols[i], err: String(result.reason) }, "Quote fetch rejected");
       quoteMap.set(symbols[i]!, { currentPrice: 0, sector: "Unknown", name: symbols[i]! });
     }
   });
@@ -86,7 +124,8 @@ router.post("/analyze", async (req, res) => {
 
   const holdingDetails = holdings.map((h) => {
     const quote = quoteMap.get(h.symbol)!;
-    const currentPrice = quote.currentPrice || h.buyPrice;
+    // Fall back to buy price if live price is 0 (fetch failed)
+    const currentPrice = quote.currentPrice > 0 ? quote.currentPrice : h.buyPrice;
     const currentValue = currentPrice * h.quantity;
     const investedValue = h.buyPrice * h.quantity;
     const gainLoss = currentValue - investedValue;
@@ -146,7 +185,6 @@ router.post("/analyze", async (req, res) => {
 
   const topHoldingWeight = holdingDetails.reduce((max, h) => Math.max(max, h.weight), 0);
   const numberOfSectors = sectorMap.size;
-
   const hhi = holdingDetails.reduce((sum, h) => sum + (h.weight / 100) ** 2, 0);
 
   let volatilityCategory: "Low" | "Moderate" | "High" | "Very High" = "Moderate";
@@ -159,33 +197,47 @@ router.post("/analyze", async (req, res) => {
   if (topHoldingWeight > 40 || hhi > 0.25) concentrationRisk = "High";
   else if (topHoldingWeight > 25 || hhi > 0.15) concentrationRisk = "Moderate";
 
-  const portfolioJson = JSON.stringify({
-    holdings: holdingDetails.map((h) => ({
-      symbol: h.symbol,
-      name: h.name,
-      sector: h.sector,
-      quantity: h.quantity,
-      buyPrice: h.buyPrice,
-      currentPrice: h.currentPrice,
-      currentValue: h.currentValue,
-      gainLossPercent: h.gainLossPercent,
-      weight: h.weight,
-      peRatio: h.peRatio,
-      beta: h.beta,
-    })),
-    metrics: {
-      totalCurrentValue,
-      totalInvestedValue,
-      totalGainLossPercent: Math.round(totalGainLossPercent * 100) / 100,
-      weightedPE,
-      niftyPE: NIFTY_PE,
-      portfolioBeta: Math.round(portfolioBeta * 100) / 100,
-      numberOfSectors,
-      numberOfHoldings: holdings.length,
-      concentrationRisk,
-      topSectors: sectorAllocation.slice(0, 3).map((s) => s.sector),
+  const portfolioJson = JSON.stringify(
+    {
+      holdings: holdingDetails.map((h) => ({
+        symbol: h.symbol,
+        name: h.name,
+        sector: h.sector,
+        quantity: h.quantity,
+        buyPrice: h.buyPrice,
+        currentPrice: h.currentPrice,
+        currentValue: h.currentValue,
+        gainLossPercent: h.gainLossPercent,
+        weight: h.weight,
+        peRatio: h.peRatio,
+        beta: h.beta,
+      })),
+      metrics: {
+        totalCurrentValue,
+        totalInvestedValue,
+        totalGainLossPercent: Math.round(totalGainLossPercent * 100) / 100,
+        weightedPE,
+        niftyPE: NIFTY_PE,
+        portfolioBeta: Math.round(portfolioBeta * 100) / 100,
+        numberOfSectors,
+        numberOfHoldings: holdings.length,
+        concentrationRisk,
+        topSectors: sectorAllocation.slice(0, 3).map((s) => s.sector),
+      },
     },
-  }, null, 2);
+    null,
+    2
+  );
+
+  req.log.info(
+    {
+      totalCurrentValue: Math.round(totalCurrentValue),
+      totalGainLossPercent: Math.round(totalGainLossPercent * 10) / 10,
+      numberOfSectors,
+      weightedPE,
+    },
+    "Portfolio analyze: metrics calculated"
+  );
 
   const data = AnalyzePortfolioResponse.parse({
     totalCurrentValue: Math.round(totalCurrentValue),
