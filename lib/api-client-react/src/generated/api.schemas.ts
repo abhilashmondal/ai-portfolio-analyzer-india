@@ -141,6 +141,53 @@ export interface PortfolioAnalysisResponse {
   portfolioJson: string;
 }
 
+export interface StockHistoryHolding {
+  symbol: string;
+  quantity: number;
+  buyPrice: number;
+}
+
+export type StockHistoryRequestPeriod =
+  (typeof StockHistoryRequestPeriod)[keyof typeof StockHistoryRequestPeriod];
+
+export const StockHistoryRequestPeriod = {
+  "6mo": "6mo",
+  "1y": "1y",
+} as const;
+
+export interface StockHistoryRequest {
+  holdings: StockHistoryHolding[];
+  period: StockHistoryRequestPeriod;
+}
+
+export interface PricePoint {
+  date: string;
+  price: number;
+  changeFromStart: number;
+}
+
+export interface StockSeries {
+  symbol: string;
+  name: string;
+  sector: string;
+  color: string;
+  data: PricePoint[];
+  available: boolean;
+}
+
+export interface PortfolioValuePoint {
+  date: string;
+  value: number;
+  changeFromStart: number;
+}
+
+export interface StockHistoryResponse {
+  stocks: StockSeries[];
+  portfolio: PortfolioValuePoint[];
+  period: string;
+  generatedAt: string;
+}
+
 export type AIAnalysisRequestPortfolioSummary = {
   totalCurrentValue: number;
   totalGainLossPercent: number;

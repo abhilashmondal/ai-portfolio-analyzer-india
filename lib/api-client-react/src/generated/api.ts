@@ -23,6 +23,8 @@ import type {
   HealthStatus,
   PortfolioAnalysisResponse,
   PortfolioRequest,
+  StockHistoryRequest,
+  StockHistoryResponse,
   StockListResponse,
   StockQuoteRequest,
   StockQuoteResponse,
@@ -350,6 +352,93 @@ export const useGetStockQuotes = <
   TContext
 > => {
   return useMutation(getGetStockQuotesMutationOptions(options));
+};
+
+/**
+ * Fetches historical OHLC data for given symbols and computes combined portfolio value trend
+ * @summary Get historical price data for stocks
+ */
+export const getGetStockHistoryUrl = () => {
+  return `/api/stocks/history`;
+};
+
+export const getStockHistory = async (
+  stockHistoryRequest: StockHistoryRequest,
+  options?: RequestInit,
+): Promise<StockHistoryResponse> => {
+  return customFetch<StockHistoryResponse>(getGetStockHistoryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(stockHistoryRequest),
+  });
+};
+
+export const getGetStockHistoryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getStockHistory>>,
+    TError,
+    { data: BodyType<StockHistoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof getStockHistory>>,
+  TError,
+  { data: BodyType<StockHistoryRequest> },
+  TContext
+> => {
+  const mutationKey = ["getStockHistory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof getStockHistory>>,
+    { data: BodyType<StockHistoryRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return getStockHistory(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GetStockHistoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof getStockHistory>>
+>;
+export type GetStockHistoryMutationBody = BodyType<StockHistoryRequest>;
+export type GetStockHistoryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get historical price data for stocks
+ */
+export const useGetStockHistory = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getStockHistory>>,
+    TError,
+    { data: BodyType<StockHistoryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof getStockHistory>>,
+  TError,
+  { data: BodyType<StockHistoryRequest> },
+  TContext
+> => {
+  return useMutation(getGetStockHistoryMutationOptions(options));
 };
 
 /**

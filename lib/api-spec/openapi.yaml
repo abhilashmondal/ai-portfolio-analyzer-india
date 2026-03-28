@@ -85,6 +85,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /stocks/history:
+    post:
+      operationId: getStockHistory
+      tags: [stocks]
+      summary: Get historical price data for stocks
+      description: Fetches historical OHLC data for given symbols and computes combined portfolio value trend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockHistoryRequest"
+      responses:
+        "200":
+          description: Historical price data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockHistoryResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /portfolio/analyze:
     post:
       operationId: analyzePortfolio
@@ -416,6 +442,108 @@ components:
         - sectorAllocation
         - riskMetrics
         - portfolioJson
+
+    StockHistoryHolding:
+      type: object
+      properties:
+        symbol:
+          type: string
+        quantity:
+          type: number
+        buyPrice:
+          type: number
+      required:
+        - symbol
+        - quantity
+        - buyPrice
+
+    StockHistoryRequest:
+      type: object
+      properties:
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockHistoryHolding"
+        period:
+          type: string
+          enum: ["6mo", "1y"]
+      required:
+        - holdings
+        - period
+
+    PricePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        price:
+          type: number
+        changeFromStart:
+          type: number
+      required:
+        - date
+        - price
+        - changeFromStart
+
+    StockSeries:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        sector:
+          type: string
+        color:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+        available:
+          type: boolean
+      required:
+        - symbol
+        - name
+        - sector
+        - color
+        - data
+        - available
+
+    PortfolioValuePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        value:
+          type: number
+        changeFromStart:
+          type: number
+      required:
+        - date
+        - value
+        - changeFromStart
+
+    StockHistoryResponse:
+      type: object
+      properties:
+        stocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockSeries"
+        portfolio:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioValuePoint"
+        period:
+          type: string
+        generatedAt:
+          type: string
+      required:
+        - stocks
+        - portfolio
+        - period
+        - generatedAt
 
     AIAnalysisRequest:
       type: object

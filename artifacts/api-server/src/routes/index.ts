@@ -3,11 +3,13 @@ import healthRouter from "./health";
 import stocksRouter from "./stocks";
 import portfolioRouter from "./portfolio";
 import aiRouter from "./ai";
+import historyRouter from "./history";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/stocks", stocksRouter);
+router.use("/stocks", historyRouter);
 router.use("/portfolio", portfolioRouter);
 router.use("/ai", aiRouter);
 

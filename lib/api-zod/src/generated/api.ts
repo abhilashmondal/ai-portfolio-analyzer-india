@@ -84,6 +84,49 @@ export const GetStockQuotesResponse = zod.object({
 });
 
 /**
+ * Fetches historical OHLC data for given symbols and computes combined portfolio value trend
+ * @summary Get historical price data for stocks
+ */
+export const GetStockHistoryBody = zod.object({
+  holdings: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      quantity: zod.number(),
+      buyPrice: zod.number(),
+    }),
+  ),
+  period: zod.enum(["6mo", "1y"]),
+});
+
+export const GetStockHistoryResponse = zod.object({
+  stocks: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      sector: zod.string(),
+      color: zod.string(),
+      data: zod.array(
+        zod.object({
+          date: zod.string(),
+          price: zod.number(),
+          changeFromStart: zod.number(),
+        }),
+      ),
+      available: zod.boolean(),
+    }),
+  ),
+  portfolio: zod.array(
+    zod.object({
+      date: zod.string(),
+      value: zod.number(),
+      changeFromStart: zod.number(),
+    }),
+  ),
+  period: zod.string(),
+  generatedAt: zod.string(),
+});
+
+/**
  * Calculates portfolio value, sector allocation, risk metrics, and P/E ratios
  * @summary Analyze portfolio metrics
  */
