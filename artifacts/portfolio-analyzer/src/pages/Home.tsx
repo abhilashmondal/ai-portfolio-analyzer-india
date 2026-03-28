@@ -143,9 +143,14 @@ export default function Home() {
             <h1 className="font-display font-bold text-xl tracking-tight text-gradient">AI Portfolio Analyzer</h1>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-            India Markets Live
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:block text-xs text-muted-foreground/60 font-medium">
+              Created by <span className="text-muted-foreground font-semibold">Abhilash Mondal</span>
+            </span>
+            <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+              India Markets Live
+            </div>
           </div>
         </div>
       </header>
