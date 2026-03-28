@@ -9,7 +9,7 @@ import { PortfolioBuilder } from '@/components/PortfolioBuilder';
 import { DashboardMetrics } from '@/components/DashboardMetrics';
 import { AIInsightsPanel } from '@/components/AIInsightsPanel';
 import { Button } from '@/components/ui-elements';
-import { Download, Activity, Radar } from 'lucide-react';
+import { Download, Activity, Radar, Sparkles, Bot, BrainCircuit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useExportPdf } from '@/hooks/use-export-pdf';
 import { motion } from 'framer-motion';

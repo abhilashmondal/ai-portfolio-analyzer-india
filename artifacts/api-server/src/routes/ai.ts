@@ -100,7 +100,7 @@ router.post("/analyze", async (req, res) => {
         model: GPT_MODEL,
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        max_tokens: 8192,
+        max_completion_tokens: 8192,
       }),
       anthropic.messages.create({
         model: CLAUDE_MODEL,

@@ -1,0 +1,82 @@
+You are a senior full-stack engineer and debugging specialist.
+
+I already have a generated React + Node.js app called "AI Portfolio Analyzer", but it is NOT working properly.
+
+CURRENT ISSUES:
+1. Runtime error: components like "Sparkles" are not defined
+2. Selecting stocks and clicking "Analyze" does nothing or fails
+3. AI response is not being returned to the UI
+
+YOUR TASK: FIX AND STABILIZE THE ENTIRE APPLICATION
+
+-----------------------------------
+STEP 1: FIX FRONTEND ERRORS
+-----------------------------------
+- Scan all React components
+- Identify undefined components (e.g., Sparkles)
+- Add proper imports (e.g., lucide-react)
+- Install missing dependencies and update package.json
+- Ensure app compiles without errors
+
+-----------------------------------
+STEP 2: FIX STATE MANAGEMENT
+-----------------------------------
+- Ensure selected stocks are stored correctly in state
+- Ensure portfolio data structure is consistent
+- Validate inputs before sending to backend
+
+-----------------------------------
+STEP 3: FIX ANALYZE BUTTON FLOW
+-----------------------------------
+- Ensure button triggers API call
+- Verify correct endpoint URL
+- Add loading state (spinner)
+- Add error handling
+
+-----------------------------------
+STEP 4: FIX BACKEND API
+-----------------------------------
+- Ensure /analyze endpoint exists
+- Validate request body (portfolio JSON)
+- Add logs:
+    console.log("Incoming:", req.body)
+
+- Integrate OpenAI API properly
+- If Claude is added, ensure both APIs work
+
+-----------------------------------
+STEP 5: AI RESPONSE HANDLING
+-----------------------------------
+- Ensure AI returns structured JSON
+- Parse response safely
+- Return clean JSON to frontend
+
+-----------------------------------
+STEP 6: FRONTEND DISPLAY
+-----------------------------------
+- Show:
+   - Loading state
+   - Error message if failed
+   - AI output if success
+
+-----------------------------------
+STEP 7: ADD DEBUGGING
+-----------------------------------
+- Add console logs in frontend and backend
+- Make errors visible (not silent)
+
+-----------------------------------
+STEP 8: FINAL VALIDATION
+-----------------------------------
+- Run full flow:
+   Select stocks → Click Analyze → Get AI response
+
+-----------------------------------
+OUTPUT REQUIRED:
+-----------------------------------
+- Fix code directly
+- Explain what was broken
+- Confirm app works end-to-end
+
+IMPORTANT:
+Do NOT just suggest fixes — APPLY them.
