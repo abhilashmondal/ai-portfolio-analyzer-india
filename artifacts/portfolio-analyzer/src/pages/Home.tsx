@@ -1,18 +1,23 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { 
-  useAnalyzePortfolio, 
-  useAiAnalyzePortfolio, 
+import {
+  useAnalyzePortfolio,
+  useAiAnalyzePortfolio,
   type PortfolioAnalysisResponse,
-  type AIAnalysisResponse
+  type AIAnalysisResponse,
 } from '@workspace/api-client-react';
 import { PortfolioBuilder } from '@/components/PortfolioBuilder';
 import { DashboardMetrics } from '@/components/DashboardMetrics';
 import { AIInsightsPanel } from '@/components/AIInsightsPanel';
+import { HistoricalTrends } from '@/components/HistoricalTrends';
 import { Button } from '@/components/ui-elements';
-import { Download, Activity, Radar, Sparkles, Bot, BrainCircuit } from 'lucide-react';
+import {
+  Download, Activity, Radar, Sparkles, Bot, BrainCircuit, LineChart as LineChartIcon,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useExportPdf } from '@/hooks/use-export-pdf';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+type DashboardTab = 'overview' | 'trends' | 'ai';
 
 export default function Home() {
   const { toast } = useToast();
@@ -21,115 +26,102 @@ export default function Home() {
 
   const [portfolioData, setPortfolioData] = useState<PortfolioAnalysisResponse | null>(null);
   const [aiData, setAiData] = useState<AIAnalysisResponse | null>(null);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  // Store the submitted holdings so Historical Trends can reference them
+  const [submittedHoldings, setSubmittedHoldings] = useState<{ symbol: string; quantity: number; buyPrice: number }[]>([]);
 
-  // Prevent duplicate in-flight requests
   const isRequestInFlight = useRef(false);
 
   const analyzeMutation = useAnalyzePortfolio({
     mutation: {
       onError: (err: unknown) => {
-        const message = err instanceof Error ? err.message : "Failed to analyze portfolio. Please check your inputs.";
-        console.error("[Portfolio] Analysis error:", err);
-        toast({
-          title: "Analysis Failed",
-          description: message,
-          variant: "destructive"
-        });
-      }
-    }
+        const message = err instanceof Error ? err.message : 'Failed to analyze portfolio.';
+        console.error('[Portfolio] Analysis error:', err);
+        toast({ title: 'Analysis Failed', description: message, variant: 'destructive' });
+      },
+    },
   });
 
   const aiMutation = useAiAnalyzePortfolio({
     mutation: {
       onError: (err: unknown) => {
-        const message = err instanceof Error ? err.message : "Could not generate AI insights.";
-        console.error("[AI] Insights error:", err);
-        toast({
-          title: "AI Insights Failed",
-          description: message,
-          variant: "destructive"
-        });
-      }
-    }
+        const message = err instanceof Error ? err.message : 'Could not generate AI insights.';
+        console.error('[AI] Insights error:', err);
+        toast({ title: 'AI Insights Failed', description: message, variant: 'destructive' });
+      },
+    },
   });
 
-  const handleAnalyze = useCallback(async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
-    if (isRequestInFlight.current) {
-      console.warn("[Portfolio] Duplicate request blocked — previous call still in flight");
-      return;
-    }
+  const handleAnalyze = useCallback(
+    async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
+      if (isRequestInFlight.current) {
+        console.warn('[Portfolio] Duplicate request blocked');
+        return;
+      }
+      if (holdings.length === 0) {
+        toast({ title: 'Empty Portfolio', description: 'Add at least one stock.', variant: 'destructive' });
+        return;
+      }
 
-    // Edge case: empty portfolio
-    if (holdings.length === 0) {
-      toast({
-        title: "Empty Portfolio",
-        description: "Please add at least one stock with valid quantity and buy price.",
-        variant: "destructive"
-      });
-      return;
-    }
+      isRequestInFlight.current = true;
+      setPortfolioData(null);
+      setAiData(null);
+      setActiveTab('overview');
+      setSubmittedHoldings(holdings);
+      console.log('[Portfolio] Sending for analysis:', holdings);
 
-    isRequestInFlight.current = true;
-    setPortfolioData(null);
-    setAiData(null);
+      try {
+        const data = await analyzeMutation.mutateAsync({ data: { holdings } });
+        console.log('[Portfolio] Received metrics:', {
+          totalValue: data.totalCurrentValue,
+          sectors: data.sectorAllocation.length,
+        });
+        setPortfolioData(data);
 
-    console.log("[Portfolio] Sending for analysis:", holdings);
+        const aiPayload = {
+          portfolioJson: data.portfolioJson,
+          portfolioSummary: {
+            totalCurrentValue: data.totalCurrentValue,
+            totalGainLossPercent: data.totalGainLossPercent,
+            weightedPE: data.weightedPE,
+            niftyPE: data.niftyPE,
+            numberOfHoldings: data.holdings.length,
+            topSectors: data.sectorAllocation.slice(0, 3).map((s) => s.sector),
+          },
+        };
 
-    try {
-      // Step 1: Portfolio metrics
-      const data = await analyzeMutation.mutateAsync({ data: { holdings } });
-      console.log("[Portfolio] Received metrics response:", {
-        totalValue: data.totalCurrentValue,
-        gainLossPercent: data.totalGainLossPercent,
-        holdings: data.holdings.length,
-        sectors: data.sectorAllocation.length,
-      });
-      setPortfolioData(data);
-
-      // Step 2: AI analysis (auto-triggered with portfolio data)
-      const aiPayload = {
-        portfolioJson: data.portfolioJson,
-        portfolioSummary: {
-          totalCurrentValue: data.totalCurrentValue,
-          totalGainLossPercent: data.totalGainLossPercent,
-          weightedPE: data.weightedPE,
-          niftyPE: data.niftyPE,
-          numberOfHoldings: data.holdings.length,
-          topSectors: data.sectorAllocation.slice(0, 3).map((s) => s.sector),
-        },
-      };
-
-      console.log("[AI] Sending portfolio for AI analysis, JSON size:", data.portfolioJson.length, "chars");
-
-      const aiResult = await aiMutation.mutateAsync({ data: aiPayload });
-
-      console.log("[AI] Received response:", {
-        gptRisk: aiResult.gpt.risk_level,
-        claudeRisk: aiResult.claude.risk_level,
-        consensusRisk: aiResult.consensus.overallRisk,
-        gptRecs: aiResult.gpt.stock_recommendations.length,
-        claudeRecs: aiResult.claude.stock_recommendations.length,
-        agreedRecs: aiResult.consensus.agreedRecommendations.length,
-      });
-
-      setAiData(aiResult);
-    } catch (e) {
-      // Individual mutation errors are handled by onError callbacks above
-      console.error("[Portfolio] handleAnalyze caught:", e);
-    } finally {
-      isRequestInFlight.current = false;
-    }
-  }, [analyzeMutation, aiMutation, toast]);
+        console.log('[AI] Sending for analysis, JSON size:', data.portfolioJson.length);
+        const aiResult = await aiMutation.mutateAsync({ data: aiPayload });
+        console.log('[AI] Received:', {
+          gptRisk: aiResult.gpt.risk_level,
+          claudeRisk: aiResult.claude.risk_level,
+          agreedRecs: aiResult.consensus.agreedRecommendations.length,
+        });
+        setAiData(aiResult);
+      } catch (e) {
+        console.error('[Portfolio] handleAnalyze caught:', e);
+      } finally {
+        isRequestInFlight.current = false;
+      }
+    },
+    [analyzeMutation, aiMutation, toast]
+  );
 
   const handleExport = () => {
     if (!portfolioData) {
-      toast({ title: "No data to export", description: "Please analyze a portfolio first.", variant: "destructive" });
+      toast({ title: 'No data to export', description: 'Analyze a portfolio first.', variant: 'destructive' });
       return;
     }
     exportPdf('exportable-dashboard', 'AI-Portfolio-Analysis.pdf');
   };
 
   const isProcessing = analyzeMutation.isPending || aiMutation.isPending;
+
+  const tabs: { key: DashboardTab; label: string; icon: React.ReactNode }[] = [
+    { key: 'overview', label: 'Overview', icon: <Activity className="w-4 h-4" /> },
+    { key: 'trends', label: 'Historical Trends', icon: <LineChartIcon className="w-4 h-4" /> },
+    { key: 'ai', label: 'AI Research', icon: <Sparkles className="w-4 h-4" /> },
+  ];
 
   return (
     <div className="min-h-screen pb-24">
@@ -142,43 +134,42 @@ export default function Home() {
             </div>
             <h1 className="font-display font-bold text-xl tracking-tight text-gradient">AI Portfolio Analyzer</h1>
           </div>
-
           <div className="flex items-center gap-4">
             <span className="hidden sm:block text-xs text-muted-foreground/60 font-medium">
               Created by <span className="text-muted-foreground font-semibold">Abhilash Mondal</span>
             </span>
             <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
               India Markets Live
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
-        {/* Intro Section */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+        {/* Hero */}
         {!portfolioData && !isProcessing && (
           <div className="text-center py-10 max-w-2xl mx-auto space-y-4">
             <h2 className="text-4xl md:text-5xl font-display font-extrabold tracking-tight text-foreground">
-              Institutional-grade analysis,<br/>
+              Institutional-grade analysis,<br />
               <span className="text-gradient-primary">powered by dual AI.</span>
             </h2>
             <p className="text-muted-foreground text-lg">
-              Build your portfolio from NIFTY 50 or SENSEX 30, and get instant risk metrics, valuation comparisons, and consensus recommendations from ChatGPT & Claude.
+              Build your portfolio from NIFTY 50 or SENSEX 30, and get instant risk metrics,
+              valuation comparisons, and consensus recommendations from ChatGPT & Claude.
             </p>
           </div>
         )}
 
-        {/* Input Section */}
+        {/* Portfolio Builder */}
         <section>
           <PortfolioBuilder onAnalyze={handleAnalyze} isAnalyzing={isProcessing} />
         </section>
 
-        {/* Dashboard Results */}
+        {/* Results */}
         {(portfolioData || isProcessing) && (
-          <div id="exportable-dashboard" ref={dashboardRef} className="space-y-10 relative pt-8">
-
-            {/* Export Header */}
+          <div className="space-y-6">
+            {/* Top bar: title + export */}
             {portfolioData && !isProcessing && (
               <div className="flex items-center justify-between" data-html2canvas-ignore>
                 <h2 className="text-2xl font-display font-bold flex items-center gap-2">
@@ -187,84 +178,143 @@ export default function Home() {
                 </h2>
                 <Button variant="outline" size="sm" onClick={handleExport} disabled={isExporting}>
                   {isExporting
-                    ? <span className="animate-pulse">Generating PDF...</span>
-                    : <><Download className="w-4 h-4 mr-2" /> Export PDF</>}
+                    ? <span className="animate-pulse">Generating PDF…</span>
+                    : <><Download className="w-4 h-4 mr-2" />Export PDF</>}
                 </Button>
               </div>
             )}
 
-            {/* Metrics */}
-            {analyzeMutation.isPending ? (
+            {/* Loading: metrics still computing */}
+            {analyzeMutation.isPending && (
               <div className="h-[400px] flex items-center justify-center border border-white/5 rounded-2xl bg-card/30">
                 <div className="flex flex-col items-center gap-4">
-                  <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-                  <p className="text-muted-foreground font-medium animate-pulse">Fetching live prices and calculating metrics...</p>
+                  <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  <p className="text-muted-foreground font-medium animate-pulse">
+                    Fetching live prices and calculating metrics…
+                  </p>
                 </div>
               </div>
-            ) : portfolioData && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <DashboardMetrics data={portfolioData} />
-              </motion.div>
             )}
 
-            {/* AI Insights */}
+            {/* Tab bar — shown once metrics are ready */}
             {portfolioData && (
-              <div className="pt-6">
-                <h2 className="text-2xl font-display font-bold flex items-center gap-2 mb-6">
-                  <Sparkles className="w-6 h-6 text-purple-400" />
-                  AI Research Analyst
-                </h2>
+              <>
+                <div id="exportable-dashboard" ref={dashboardRef}>
+                  {/* Tab navigation */}
+                  <div className="flex gap-1 p-1 bg-muted/40 rounded-xl border border-white/5 w-fit mb-6" data-html2canvas-ignore>
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                          activeTab === tab.key
+                            ? 'bg-background text-foreground shadow border border-white/10'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {tab.icon}
+                        {tab.label}
+                        {tab.key === 'ai' && aiMutation.isPending && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse ml-1" />
+                        )}
+                        {tab.key === 'ai' && aiData && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-success ml-1" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
 
-                {aiMutation.isPending ? (
-                  <div className="h-[300px] flex items-center justify-center border border-primary/20 rounded-2xl bg-gradient-to-b from-card/60 to-background shadow-[0_0_30px_-10px_hsl(var(--primary)/0.1)] relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
-                    <div className="flex flex-col items-center gap-5 relative z-10">
-                      <div className="flex gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center animate-bounce shadow-[0_0_15px_0_rgba(16,185,129,0.3)]">
-                          <Bot className="w-6 h-6 text-emerald-400" />
-                        </div>
-                        <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center animate-bounce shadow-[0_0_15px_0_rgba(249,115,22,0.3)]" style={{ animationDelay: '0.15s' }}>
-                          <BrainCircuit className="w-6 h-6 text-orange-400" />
-                        </div>
-                      </div>
-                      <p className="text-primary font-medium tracking-wide animate-pulse">
-                        Synthesizing multi-model consensus (this may take ~20s)...
-                      </p>
-                    </div>
-                  </div>
-                ) : aiMutation.isError ? (
-                  <div className="p-6 rounded-2xl border border-destructive/30 bg-destructive/5 text-center space-y-2">
-                    <p className="text-destructive font-semibold">AI analysis failed</p>
-                    <p className="text-muted-foreground text-sm">
-                      {aiMutation.error instanceof Error ? aiMutation.error.message : "An unexpected error occurred. Please retry."}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => portfolioData && aiMutation.mutate({
-                        data: {
-                          portfolioJson: portfolioData.portfolioJson,
-                          portfolioSummary: {
-                            totalCurrentValue: portfolioData.totalCurrentValue,
-                            totalGainLossPercent: portfolioData.totalGainLossPercent,
-                            weightedPE: portfolioData.weightedPE,
-                            niftyPE: portfolioData.niftyPE,
-                            numberOfHoldings: portfolioData.holdings.length,
-                            topSectors: portfolioData.sectorAllocation.slice(0, 3).map((s) => s.sector),
-                          },
-                        }
-                      }).then(setAiData)}
-                    >
-                      Retry AI Analysis
-                    </Button>
-                  </div>
-                ) : aiData ? (
-                  <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6, delay: 0.2 }}>
-                    <AIInsightsPanel analysis={aiData} />
-                  </motion.div>
-                ) : null}
-              </div>
+                  {/* Tab panels */}
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'overview' && (
+                      <motion.div
+                        key="overview"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.35 }}
+                      >
+                        <DashboardMetrics data={portfolioData} />
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'trends' && (
+                      <motion.div
+                        key="trends"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.35 }}
+                      >
+                        <HistoricalTrends holdings={submittedHoldings} />
+                      </motion.div>
+                    )}
+
+                    {activeTab === 'ai' && (
+                      <motion.div
+                        key="ai"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.35 }}
+                      >
+                        {aiMutation.isPending ? (
+                          <div className="h-[300px] flex items-center justify-center border border-primary/20 rounded-2xl bg-gradient-to-b from-card/60 to-background relative overflow-hidden">
+                            <div className="flex flex-col items-center gap-5 relative z-10">
+                              <div className="flex gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center animate-bounce">
+                                  <Bot className="w-6 h-6 text-emerald-400" />
+                                </div>
+                                <div className="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center animate-bounce" style={{ animationDelay: '0.15s' }}>
+                                  <BrainCircuit className="w-6 h-6 text-orange-400" />
+                                </div>
+                              </div>
+                              <p className="text-primary font-medium animate-pulse">
+                                Synthesizing multi-model consensus (~20s)…
+                              </p>
+                            </div>
+                          </div>
+                        ) : aiMutation.isError ? (
+                          <div className="p-6 rounded-2xl border border-destructive/30 bg-destructive/5 text-center space-y-3">
+                            <p className="text-destructive font-semibold">AI analysis failed</p>
+                            <p className="text-muted-foreground text-sm">
+                              {aiMutation.error instanceof Error
+                                ? aiMutation.error.message
+                                : 'An unexpected error occurred. Please retry.'}
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                portfolioData &&
+                                aiMutation
+                                  .mutateAsync({
+                                    data: {
+                                      portfolioJson: portfolioData.portfolioJson,
+                                      portfolioSummary: {
+                                        totalCurrentValue: portfolioData.totalCurrentValue,
+                                        totalGainLossPercent: portfolioData.totalGainLossPercent,
+                                        weightedPE: portfolioData.weightedPE,
+                                        niftyPE: portfolioData.niftyPE,
+                                        numberOfHoldings: portfolioData.holdings.length,
+                                        topSectors: portfolioData.sectorAllocation.slice(0, 3).map((s) => s.sector),
+                                      },
+                                    },
+                                  })
+                                  .then(setAiData)
+                              }
+                            >
+                              Retry AI Analysis
+                            </Button>
+                          </div>
+                        ) : aiData ? (
+                          <AIInsightsPanel analysis={aiData} />
+                        ) : null}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
             )}
           </div>
         )}

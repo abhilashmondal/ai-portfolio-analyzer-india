@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { z } from "zod";
+import { GetStockHistoryBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -77,17 +77,6 @@ const CHART_COLORS = [
   "#84CC16", "#14B8A6", "#A78BFA", "#FB923C",
 ];
 
-const RequestSchema = z.object({
-  holdings: z.array(
-    z.object({
-      symbol: z.string().min(1),
-      quantity: z.number().positive(),
-      buyPrice: z.number().positive(),
-    })
-  ).min(1).max(20),
-  period: z.enum(["6mo", "1y"]),
-});
-
 interface PricePoint { date: string; price: number; changeFromStart: number }
 interface PortfolioPoint { date: string; value: number; changeFromStart: number }
 
@@ -138,13 +127,18 @@ function formatDate(ts: number): string {
 }
 
 router.post("/history", async (req, res) => {
-  const parsed = RequestSchema.safeParse(req.body);
+  const parsed = GetStockHistoryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Bad request", message: parsed.error.message });
     return;
   }
 
   const { holdings, period } = parsed.data;
+
+  if (holdings.length === 0 || holdings.length > 20) {
+    res.status(400).json({ error: "Bad request", message: "holdings must contain 1–20 items" });
+    return;
+  }
   req.log.info({ symbols: holdings.map((h) => h.symbol), period }, "History: fetching");
 
   // Fetch all stocks in parallel
