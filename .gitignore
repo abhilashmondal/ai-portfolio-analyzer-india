@@ -1,49 +1,77 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
-
-# compiled output
-dist
-tmp
-out-tsc
+# ── Build outputs ─────────────────────────────────────────────────────────────
+dist/
+tmp/
+out-tsc/
+build/
 *.tsbuildinfo
-.expo
-.expo-shared
+.expo/
+.expo-shared/
 
-# dependencies
-node_modules
+# ── Dependencies ───────────────────────────────────────────────────────────────
+node_modules/
 
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
+# ── Environment & secrets (NEVER commit these) ────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
 
-# IDE - VSCode
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+testem.log
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Cache & temp ──────────────────────────────────────────────────────────────
+.cache/
+.turbo/
+.parcel-cache/
+*.tgz
+
+# ── Replit-specific (local tooling, not part of the codebase) ─────────────────
+.local/
+.agents/
+attached_assets/
+.replitignore
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V500
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.settings/
+*.launch
+.c9/
 
-# misc
+# ── TypeScript declaration outputs (generated from source) ────────────────────
+*.d.ts.map
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
 /.sass-cache
 /connect.lock
-/coverage
 /libpeerconnection.log
-npm-debug.log
-yarn-error.log
-testem.log
 /typings
-
-# System Files
-.DS_Store
-Thumbs.db
-
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
-
-# Replit
-.cache/
-.local/
