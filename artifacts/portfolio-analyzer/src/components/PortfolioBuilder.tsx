@@ -1,9 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { useGetNifty50Stocks, useGetSensex30Stocks } from '@workspace/api-client-react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Trash2, TrendingUp, AlertCircle } from 'lucide-react';
 import { Button, Input, Card, Checkbox, Badge } from './ui-elements';
 import { motion, AnimatePresence } from 'framer-motion';
-
+const API_URL = "https://ai-portfolio-analyzer-india-1.onrender.com";
 export interface DraftHolding {
   symbol: string;
   name: string;
@@ -30,10 +29,37 @@ export function PortfolioBuilder({ onAnalyze, isAnalyzing }: PortfolioBuilderPro
 
   // Index portfolio state — tracks selected stocks and their inputs
   const [selectedStocks, setSelectedStocks] = useState<Record<string, DraftHolding>>({});
+  const [niftyData, setNiftyData] = useState<any>(null);
+const [sensexData, setSensexData] = useState<any>(null);
+const [isLoadingNifty, setIsLoadingNifty] = useState(true);
+const [isLoadingSensex, setIsLoadingSensex] = useState(true);
+const [isNiftyError, setIsNiftyError] = useState(false);
+const [isSensexError, setIsSensexError] = useState(false);
+  useEffect(() => {
+  // NIFTY
+  fetch(`${API_URL}/api/stocks?nifty=true`)
+    .then(res => res.json())
+    .then(data => {
+      setNiftyData(data);
+      setIsLoadingNifty(false);
+    })
+    .catch(() => {
+      setIsNiftyError(true);
+      setIsLoadingNifty(false);
+    });
 
-  const { data: niftyData, isLoading: isLoadingNifty, isError: isNiftyError } = useGetNifty50Stocks();
-  const { data: sensexData, isLoading: isLoadingSensex, isError: isSensexError } = useGetSensex30Stocks();
-
+  // SENSEX
+  fetch(`${API_URL}/api/stocks?sensex=true`)
+    .then(res => res.json())
+    .then(data => {
+      setSensexData(data);
+      setIsLoadingSensex(false);
+    })
+    .catch(() => {
+      setIsSensexError(true);
+      setIsLoadingSensex(false);
+    });
+}, []);
   const currentStocks = useMemo(() => {
     const raw = indexType === 'NIFTY50' ? niftyData?.stocks : sensexData?.stocks;
     if (!raw) return [];
