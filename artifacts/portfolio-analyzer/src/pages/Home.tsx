@@ -16,7 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useExportPdf } from '@/hooks/use-export-pdf';
 import { motion, AnimatePresence } from 'framer-motion';
-
+const API_URL = "https://ai-portfolio-analyzer-india.onrender.com";
 type DashboardTab = 'overview' | 'trends' | 'ai';
 
 export default function Home() {
@@ -70,12 +70,15 @@ export default function Home() {
       setSubmittedHoldings(holdings);
       console.log('[Portfolio] Sending for analysis:', holdings);
 
-      try {
-        const data = await analyzeMutation.mutateAsync({ data: { holdings } });
-        console.log('[Portfolio] Received metrics:', {
-          totalValue: data.totalCurrentValue,
-          sectors: data.sectorAllocation.length,
-        });
+      const res = await fetch(`${API_URL}/api/analyze`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ holdings }),
+});
+
+const data = await res.json();
         setPortfolioData(data);
 
         const aiPayload = {
@@ -91,7 +94,15 @@ export default function Home() {
         };
 
         console.log('[AI] Sending for analysis, JSON size:', data.portfolioJson.length);
-        const aiResult = await aiMutation.mutateAsync({ data: aiPayload });
+        const aiRes = await fetch(`${API_URL}/api/ai-analyze`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(aiPayload),
+});
+
+const aiResult = await aiRes.json();
         console.log('[AI] Received:', {
           gptRisk: aiResult.gpt.risk_level,
           claudeRisk: aiResult.claude.risk_level,
