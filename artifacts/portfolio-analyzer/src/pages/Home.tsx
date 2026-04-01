@@ -53,15 +53,18 @@ export default function Home() {
   });
 
   const handleAnalyze = useCallback(
-    async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
-      if (isRequestInFlight.current) {
-        console.warn('[Portfolio] Duplicate request blocked');
-        return;
-      }
-      if (holdings.length === 0) {
-        toast({ title: 'Empty Portfolio', description: 'Add at least one stock.', variant: 'destructive' });
-        return;
-      }
+   async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
+  try {
+
+    if (isRequestInFlight.current) {
+      console.warn('[Portfolio] Duplicate request blocked');
+      return;
+    }
+
+    if (holdings.length === 0) {
+      toast({ title: 'Empty Portfolio', description: 'Add at least one stock.', variant: 'destructive' });
+      return;
+    }
 
       isRequestInFlight.current = true;
       setPortfolioData(null);
