@@ -52,74 +52,82 @@ export default function Home() {
     },
   });
 
-  const handleAnalyze = useCallback(
-   async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
-  try {
+ const handleAnalyze = useCallback(
+  async (holdings: { symbol: string; quantity: number; buyPrice: number }[]) => {
+    try {
+      if (isRequestInFlight.current) {
+        console.warn('[Portfolio] Duplicate request blocked');
+        return;
+      }
 
-    if (isRequestInFlight.current) {
-      console.warn('[Portfolio] Duplicate request blocked');
-      return;
-    }
-
-    if (holdings.length === 0) {
-      toast({ title: 'Empty Portfolio', description: 'Add at least one stock.', variant: 'destructive' });
-      return;
-    }
+      if (holdings.length === 0) {
+        toast({
+          title: 'Empty Portfolio',
+          description: 'Add at least one stock.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       isRequestInFlight.current = true;
       setPortfolioData(null);
       setAiData(null);
       setActiveTab('overview');
       setSubmittedHoldings(holdings);
-      console.log('[Portfolio] Sending for analysis:', holdings);
 
+      // 🔥 Portfolio Analysis
       const res = await fetch(`${API_URL}/api/analyze`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ holdings }),
-});
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ holdings }),
+      });
 
-const data = await res.json();
-        setPortfolioData(data);
-
-        const aiPayload = {
-          portfolioJson: data.portfolioJson,
-          portfolioSummary: {
-            totalCurrentValue: data.totalCurrentValue,
-            totalGainLossPercent: data.totalGainLossPercent,
-            weightedPE: data.weightedPE,
-            niftyPE: data.niftyPE,
-            numberOfHoldings: data.holdings.length,
-            topSectors: data.sectorAllocation.slice(0, 3).map((s) => s.sector),
-          },
-        };
-
-        console.log('[AI] Sending for analysis, JSON size:', data.portfolioJson.length);
-        const aiRes = await fetch(`${API_URL}/api/ai-analyze`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(aiPayload),
-});
-
-const aiResult = await aiRes.json();
-        console.log('[AI] Received:', {
-          gptRisk: aiResult.gpt.risk_level,
-          claudeRisk: aiResult.claude.risk_level,
-          agreedRecs: aiResult.consensus.agreedRecommendations.length,
-        });
-        setAiData(aiResult);
-      } catch (e) {
-        console.error('[Portfolio] handleAnalyze caught:', e);
-      } finally {
-        isRequestInFlight.current = false;
+      if (!res.ok) {
+        throw new Error("Portfolio analysis failed");
       }
-    },
-    [analyzeMutation, aiMutation, toast]
-  );
+
+      const data = await res.json();
+      setPortfolioData(data);
+
+      // 🔥 AI Analysis
+      const aiPayload = {
+        portfolioJson: data.portfolioJson,
+        portfolioSummary: {
+          totalCurrentValue: data.totalCurrentValue,
+          totalGainLossPercent: data.totalGainLossPercent,
+          weightedPE: data.weightedPE,
+          niftyPE: data.niftyPE,
+          numberOfHoldings: data.holdings.length,
+          topSectors: data.sectorAllocation.slice(0, 3).map((s: any) => s.sector),
+        },
+      };
+
+      const aiRes = await fetch(`${API_URL}/api/ai-analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(aiPayload),
+      });
+
+      if (!aiRes.ok) {
+        throw new Error("AI analysis failed");
+      }
+
+      const aiResult = await aiRes.json();
+      setAiData(aiResult);
+
+    } catch (e) {
+      console.error('[Portfolio] handleAnalyze caught:', e);
+    } finally {
+      isRequestInFlight.current = false;
+    }
+  },
+  [toast]
+);
+
 
   const handleExport = () => {
     if (!portfolioData) {
